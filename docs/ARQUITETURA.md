@@ -52,9 +52,9 @@ flowchart TB
 | `model` | Entidades JPA e enums do domínio. |
 | `dto` | Contratos de entrada e saída (records). As entidades nunca saem da API. |
 | `mapper` | Conversão entre entidade e DTO, sem dependências externas. |
-| `security` | Geração e validação do JWT, filtro `OncePerRequestFilter`, `UserDetailsService` e os handlers de 401/403 no mesmo formato de erro da API. |
+| `security` | Geração e validação do JWT, filtro `OncePerRequestFilter`, `UserDetailsService`, handlers de 401/403 no mesmo formato de erro da API, rate limiting (429), limite de tamanho do corpo (413) e, em `security/crypto`, a criptografia AES-256-GCM dos dados pessoais. |
 | `exception` | Exceções de domínio e o `GlobalExceptionHandler` com o formato único de erro. |
-| `config` | `SecurityFilterChain`, `PasswordEncoder` (BCrypt), OpenAPI com o esquema Bearer, `Clock` injetável e `LeadProperties` (limite do score). |
+| `config` | `SecurityFilterChain`, `PasswordEncoder` (BCrypt), OpenAPI com o esquema Bearer, `Clock` injetável, `LeadProperties` (limite do score) e `TraceIdFilter` (traceId nos logs). |
 
 ### Onde entra cada consumidor
 
@@ -91,7 +91,7 @@ sequenceDiagram
     else autenticado
         AM-->>AC: Authentication
         AC->>JS: gerarToken(usuario)
-        JS-->>AC: JWT HS256 (sub, uid, role,<br/>concessionariaId, iat, exp)
+        JS-->>AC: JWT HS256 (sub, uid, role,<br/>concessionariaId, jti, iat, exp · 15 min)
         AC-->>U: 200 {accessToken, tokenType, expiresIn, usuario}
     end
 ```
@@ -308,12 +308,14 @@ ou são criados por um ADMIN (`POST /usuarios`).
 | GET | `/leads?status=ABERTO&perfil=ABANDONO&prioridade=ALTA` | 200 | 401 |
 | GET/POST/PUT/DELETE | `/leads`, `/leads/{id}` | 200/201/204 | 400, 403, 404, 409 (lead ativo duplicado), 422 (veículo de outro cliente / lead finalizado) |
 | PATCH | `/leads/{id}/status` | 200 | 400, 403, 404, 422 (transição inválida) |
-| GET | `/actuator/health` | 200 | – |
+| GET | `/actuator/health`, `/actuator/prometheus` | 200 | – (demais endpoints do Actuator → 403) |
 
 Semântica dos códigos de erro:
 - **400:** payload ou parâmetros inválidos (Bean Validation, JSON malformado, tipo errado).
 - **401:** sem token, token inválido ou expirado, ou credenciais erradas.
 - **403:** a role não tem permissão para a operação.
+- **413:** corpo da requisição acima de 64 KB.
+- **429:** limite de requisições excedido (login: 5/min por IP; autenticado: 100/min por usuário), com `Retry-After`.
 - **404:** o recurso não existe ou está fora do escopo da concessionária.
 - **409:** violação de unicidade (e-mail, CNPJ, VIN, lead ativo duplicado) ou exclusão bloqueada por vínculos.
 - **422:** o payload é válido, mas viola uma regra de negócio (transição de status, data futura etc.).
@@ -338,16 +340,23 @@ Formato único de erro:
 ```
 Sprint 3/
 ├── pom.xml
-├── README.md
+├── Dockerfile · .dockerignore        (multi-stage, JRE, usuário não-root)
+├── .github/
+│   ├── workflows/devsecops.yml       (Gitleaks · Semgrep · Trivy · testes · security-gate)
+│   └── dependabot.yml
+├── .gitleaks.toml
+├── README.md · README-SECURITY.md
 ├── docs/
 │   └── ARQUITETURA.md
 └── src/
     ├── main/
     │   ├── java/br/com/fiap/fordretention/
     │   │   ├── FordRetentionApplication.java
-    │   │   ├── config/        AppConfig (Clock) · LeadProperties · OpenApiConfig · SecurityConfig
+    │   │   ├── config/        AppConfig (Clock) · LeadProperties · OpenApiConfig · SecurityConfig · TraceIdFilter
     │   │   ├── security/      JwtProperties · JwtService · JwtAuthenticationFilter · UsuarioAutenticado
-    │   │   │                  UsuarioDetailsService · RestAuthenticationEntryPoint · RestAccessDeniedHandler
+    │   │   │   │              UsuarioDetailsService · RestAuthenticationEntryPoint · RestAccessDeniedHandler
+    │   │   │   │              RateLimitFilter · RateLimitProperties · LimiteTamanhoCorpoFilter · LogSeguranca
+    │   │   │   └── crypto/    CriptografiaCampo (AES-256-GCM) · CampoCifradoConverter · MigracaoCriptografiaRunner
     │   │   ├── controller/    Auth · Usuario · Concessionaria · Cliente · PerfilCliente · Veiculo
     │   │   │                  Servico · Lead  (+ ApiResponsesPadrao, Localizacao)
     │   │   ├── service/       AuthService · UsuarioService · EscopoAcessoService · ConcessionariaService
@@ -373,12 +382,13 @@ Sprint 3/
     │   └── resources/
     │       ├── application.yml · application-dev.yml · application-prod.yml
     │       ├── data.sql              (H2 / dev)
-│       └── db/oracle/data.sql    (Oracle / prod, PL/SQL idempotente)
+    │       └── db/oracle/data.sql    (Oracle / prod, PL/SQL idempotente)
     └── test/
         ├── java/br/com/fiap/fordretention/
-        │   ├── controller/  *IT – integração com MockMvc (JWT real e @WithMockUser)
+        │   ├── controller/  *IT – integração com MockMvc (JWT real e @WithMockUser),
+        │   │                incl. RateLimitIT · IsolamentoConcessionariaIT · CriptografiaDadosPessoaisIT · ActuatorIT
         │   ├── service/     *Test – unitários com Mockito
-        │   ├── security/    JwtServiceTest
+        │   ├── security/    JwtServiceTest · crypto/CriptografiaCampoTest
         │   └── model/       RegrasDominioTest (máquina de estados, prioridade…)
         └── resources/
             └── application-test.yml

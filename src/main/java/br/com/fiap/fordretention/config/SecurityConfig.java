@@ -2,8 +2,11 @@ package br.com.fiap.fordretention.config;
 
 import br.com.fiap.fordretention.security.JwtAuthenticationFilter;
 import br.com.fiap.fordretention.security.JwtService;
+import br.com.fiap.fordretention.security.RateLimitFilter;
+import br.com.fiap.fordretention.security.RateLimitProperties;
 import br.com.fiap.fordretention.security.RestAccessDeniedHandler;
 import br.com.fiap.fordretention.security.RestAuthenticationEntryPoint;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +21,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -40,7 +44,9 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    JwtService jwtService,
                                                    RestAuthenticationEntryPoint authenticationEntryPoint,
-                                                   RestAccessDeniedHandler accessDeniedHandler) throws Exception {
+                                                   RestAccessDeniedHandler accessDeniedHandler,
+                                                   RateLimitProperties rateLimitProperties,
+                                                   ObjectMapper objectMapper) throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
@@ -68,6 +74,8 @@ public class SecurityConfig {
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
                 .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class)
+                // depois do JWT (já sabe quem é o usuário) e antes da autorização: 429 barra até o login
+                .addFilterBefore(new RateLimitFilter(rateLimitProperties, objectMapper), AuthorizationFilter.class)
                 .build();
     }
 

@@ -24,6 +24,7 @@
         <jjwt.version>0.12.7</jjwt.version>
         <springdoc.version>2.8.17</springdoc.version>
         <jacoco.version>0.8.15</jacoco.version>
+        <bucket4j.version>8.20.0</bucket4j.version>
     </properties>
 
     <dependencies>
@@ -47,6 +48,13 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- Rate limiting (token bucket em memória) -->
+        <dependency>
+            <groupId>com.bucket4j</groupId>
+            <artifactId>bucket4j_jdk17-core</artifactId>
+            <version>${bucket4j.version}</version>
         </dependency>
 
         <!-- JWT (jjwt) -->

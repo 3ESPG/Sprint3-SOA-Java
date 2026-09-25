@@ -27,6 +27,11 @@ app:
     # Tempo de vida do token (ISO-8601 ou 1h, 30m...)
     expiration: ${JWT_EXPIRATION:1h}
     issuer: ${JWT_ISSUER:ford-retention-ai}
+  rate-limit:
+    habilitado: ${RATE_LIMIT_ENABLED:true}
+    login-por-minuto: ${RATE_LIMIT_LOGIN:5}
+    autenticado-por-minuto: ${RATE_LIMIT_USUARIO:100}
+    anonimo-por-minuto: ${RATE_LIMIT_ANONIMO:60}
   lead:
     # Score mínimo (0..1) para gerar lead automático para perfis ABANDONO/ESQUECIDO
     score-limite: ${LEAD_SCORE_LIMITE:0.70}

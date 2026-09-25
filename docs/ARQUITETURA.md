@@ -363,7 +363,8 @@ Sprint 3/
     │   │                      ConflitoException (409) · RegraNegocioException (422)
     │   └── resources/
     │       ├── application.yml · application-dev.yml · application-prod.yml
-    │       └── data.sql
+    │       ├── data.sql              (H2 / dev)
+│       └── db/oracle/data.sql    (Oracle / prod, PL/SQL idempotente)
     └── test/
         ├── java/br/com/fiap/fordretention/
         │   ├── controller/  *IT – integração com MockMvc (JWT real e @WithMockUser)

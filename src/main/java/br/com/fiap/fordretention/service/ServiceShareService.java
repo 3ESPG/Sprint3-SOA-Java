@@ -73,7 +73,7 @@ public class ServiceShareService {
                 .toList();
         List<ResumoTipoServico> porTipo = servicoRepository
                 .resumirServicosPagosPorTipo(concessionariaId, inicio, fim).stream()
-                .map(r -> new ResumoTipoServico(r.tipo(), r.quantidade(), r.receita()))
+                .map(r -> new ResumoTipoServico(r.tipo(), r.quantidade(), r.receita().setScale(2, RoundingMode.HALF_UP)))
                 .toList();
 
         return new ServiceShareResponse(

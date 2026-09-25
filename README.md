@@ -117,19 +117,31 @@ JWT_SECRET="$(openssl rand -base64 48)" java -jar target/ford-retention-ai-1.0.0
 
 No Swagger, faça login em `POST /auth/login`, copie o `accessToken`, clique em **Authorize** e cole o token.
 
-### Perfil `prod` (Oracle)
+### Perfil `prod` (Oracle da FIAP)
+
+Validado contra o **Oracle Database 19c** da FIAP (`oracle.fiap.com.br`). As credenciais ficam em um
+arquivo `.env` local, que é ignorado pelo git:
 
 ```bash
-export SPRING_PROFILES_ACTIVE=prod
-export JWT_SECRET="..."
-export DB_URL="jdbc:oracle:thin:@oracle.fiap.com.br:1521:ORCL"
-export DB_USERNAME="rm000000"
-export DB_PASSWORD="..."
-mvn spring-boot:run
+cp .env.example .env        # preencha DB_USERNAME (RM) e DB_PASSWORD
+set -a; source .env; set +a
+
+# 1ª execução: cria as 6 tabelas e carrega os dados de exemplo
+SPRING_PROFILES_ACTIVE=prod DB_SEED=always mvn spring-boot:run
+
+# execuções seguintes (os dados já estão no banco)
+SPRING_PROFILES_ACTIVE=prod mvn spring-boot:run
 ```
 
-No perfil `prod` o `data.sql` não é executado e o esquema é gerenciado pelo Hibernate
-(`DDL_AUTO=update` por padrão; use `validate` quando o esquema estiver versionado).
+- **Tabelas:** o Hibernate (`ddl-auto=update`) cria as 6 tabelas da API (`CONCESSIONARIAS`, `USUARIOS`,
+  `CLIENTES`, `VEICULOS`, `SERVICOS`, `LEADS`) com colunas `IDENTITY`, disponíveis a partir do Oracle 12c.
+  Outras tabelas que já existam no schema não são alteradas.
+- **Dados de exemplo:** com `DB_SEED=always`, o script
+  [`db/oracle/data.sql`](src/main/resources/db/oracle/data.sql) (PL/SQL) carrega os mesmos dados de exemplo do
+  perfil dev, com os mesmos IDs e usuários de teste. Ele é **idempotente**: só insere se a tabela
+  `CONCESSIONARIAS` estiver vazia, então rodar de novo não duplica nada.
+- **Conexões:** o pool de conexões é pequeno (3), porque o Oracle da FIAP é compartilhado e limita sessões
+  por usuário.
 
 ## Variáveis de ambiente
 
@@ -143,13 +155,15 @@ Há um modelo em [`.env.example`](.env.example).
 | `SPRING_PROFILES_ACTIVE` | não | `dev` | `dev` (H2 + data.sql) ou `prod` (Oracle). |
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | no `prod` | – | Conexão Oracle. |
 | `DDL_AUTO` | não | `update` | Estratégia do Hibernate no `prod`. |
+| `DB_SEED` | não | `never` | `always` carrega os dados de exemplo no Oracle (idempotente). |
+| `DB_POOL_SIZE` | não | `3` | Conexões simultâneas com o Oracle. |
 | `LEAD_SCORE_LIMITE` | não | `0.70` | Score mínimo para gerar lead automático. |
 | `CORS_ALLOWED_ORIGINS` | não | localhost 3000/8081/19006 | Origens do dashboard e do app. |
 | `SERVER_PORT` | não | `8080` | Porta HTTP. |
 
 ## Usuários de teste
 
-Carregados pelo `data.sql` no perfil `dev`. **Senha de todos: `Ford@2026`**
+Carregados pelo `data.sql` no perfil `dev` e pelo `db/oracle/data.sql` no `prod` (com `DB_SEED=always`). **Senha de todos: `Ford@2026`**
 
 | E-mail | Perfil | Concessionária | Observação |
 |---|---|---|---|

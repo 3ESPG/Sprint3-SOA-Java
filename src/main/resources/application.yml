@@ -28,6 +28,9 @@ app:
     # lista de revogação, então a validade é a janela máxima de uso de um token vazado.
     expiration: ${JWT_EXPIRATION:15m}
     issuer: ${JWT_ISSUER:ford-retention-ai}
+  crypto:
+    # AES-256 em Base64 (32 bytes) para dados pessoais em repouso. Obrigatório, via variável de ambiente.
+    field-key: ${FIELD_ENCRYPTION_KEY}
   rate-limit:
     habilitado: ${RATE_LIMIT_ENABLED:true}
     login-por-minuto: ${RATE_LIMIT_LOGIN:5}

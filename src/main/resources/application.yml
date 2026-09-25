@@ -46,10 +46,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        # Só o necessário: health (probes) e prometheus (métricas). env, beans, heapdump etc. ficam fechados.
+        include: health,prometheus
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 springdoc:
   swagger-ui:

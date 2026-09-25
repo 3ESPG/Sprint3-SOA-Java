@@ -23,6 +23,11 @@ spring:
       separator: /
       encoding: UTF-8
 
+management:
+  server:
+    # Em produção o Actuator fica numa porta separada, publicada só na rede interna (Prometheus).
+    port: ${MANAGEMENT_PORT:9091}
+
 springdoc:
   swagger-ui:
     enabled: ${SWAGGER_ENABLED:true}

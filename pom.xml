@@ -57,6 +57,12 @@
             <version>${bucket4j.version}</version>
         </dependency>
 
+        <!-- Métricas no formato Prometheus em /actuator/prometheus -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!-- JWT (jjwt) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>

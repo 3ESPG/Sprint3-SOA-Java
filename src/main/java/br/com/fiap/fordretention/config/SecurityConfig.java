@@ -63,6 +63,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/auth/login", "/auth/register").permitAll()
                         .requestMatchers(SWAGGER).permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        // métricas sem dados pessoais; em prod ficam na porta interna MANAGEMENT_PORT
+                        .requestMatchers(HttpMethod.GET, "/actuator/prometheus").permitAll()
+                        .requestMatchers("/actuator/**").denyAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // exclusivos da Ford (ADMIN)

@@ -112,4 +112,22 @@ class SegurancaIT extends IntegrationTestSupport {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status").value(404));
     }
+
+    @Test
+    @DisplayName("corpo acima de 64 KB → 413 antes de desserializar")
+    void corpoGrandeDemais() throws Exception {
+        String enorme = "{\"email\": \"" + "a".repeat(70 * 1024) + "@x.com\", \"senha\": \"x\"}";
+        mvc.perform(post("/auth/login").contentType("application/json").content(enorme))
+                .andExpect(status().isPayloadTooLarge())
+                .andExpect(jsonPath("$.status").value(413));
+    }
+
+    @Test
+    @DisplayName("login com senha acima de 72 caracteres → 400 (limite do BCrypt)")
+    void senhaLongaDemais() throws Exception {
+        String corpo = "{\"email\": \"admin@ford.com\", \"senha\": \"" + "x".repeat(73) + "\"}";
+        mvc.perform(post("/auth/login").contentType("application/json").content(corpo))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fieldErrors[0].field").value("senha"));
+    }
 }

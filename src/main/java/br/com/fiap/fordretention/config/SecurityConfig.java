@@ -2,6 +2,7 @@ package br.com.fiap.fordretention.config;
 
 import br.com.fiap.fordretention.security.JwtAuthenticationFilter;
 import br.com.fiap.fordretention.security.JwtService;
+import br.com.fiap.fordretention.security.LimiteTamanhoCorpoFilter;
 import br.com.fiap.fordretention.security.RateLimitFilter;
 import br.com.fiap.fordretention.security.RateLimitProperties;
 import br.com.fiap.fordretention.security.RestAccessDeniedHandler;
@@ -23,6 +24,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.util.unit.DataSize;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -46,7 +48,9 @@ public class SecurityConfig {
                                                    RestAuthenticationEntryPoint authenticationEntryPoint,
                                                    RestAccessDeniedHandler accessDeniedHandler,
                                                    RateLimitProperties rateLimitProperties,
-                                                   ObjectMapper objectMapper) throws Exception {
+                                                   ObjectMapper objectMapper,
+                                                   @Value("${app.max-request-size:64KB}") DataSize tamanhoMaximoCorpo)
+            throws Exception {
         return http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(Customizer.withDefaults())
@@ -73,6 +77,8 @@ public class SecurityConfig {
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint(authenticationEntryPoint)
                         .accessDeniedHandler(accessDeniedHandler))
+                .addFilterBefore(new LimiteTamanhoCorpoFilter(tamanhoMaximoCorpo.toBytes(), objectMapper),
+                        UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(new JwtAuthenticationFilter(jwtService), UsernamePasswordAuthenticationFilter.class)
                 // depois do JWT (já sabe quem é o usuário) e antes da autorização: 429 barra até o login
                 .addFilterBefore(new RateLimitFilter(rateLimitProperties, objectMapper), AuthorizationFilter.class)

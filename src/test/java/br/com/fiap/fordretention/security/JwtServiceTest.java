@@ -45,6 +45,7 @@ class JwtServiceTest {
         assertThat(claims.get("concessionariaId", Number.class).longValue()).isEqualTo(1L);
         assertThat(claims.getIssuedAt().toInstant()).isEqualTo(AGORA);
         assertThat(claims.getExpiration().toInstant()).isEqualTo(AGORA.plus(Duration.ofHours(1)));
+        assertThat(claims.getId()).isNotBlank();
 
         UsuarioAutenticado usuario = jwtService.validarToken(token);
         assertThat(usuario.id()).isEqualTo(3L);
@@ -120,5 +121,21 @@ class JwtServiceTest {
     @Test
     void expiracaoEmSegundos() {
         assertThat(jwtService.expiracaoEmSegundos()).isEqualTo(3600);
+    }
+
+    @Test
+    @DisplayName("token corretamente assinado mas sem exp é recusado")
+    void tokenSemExpiracao() {
+        String semExp = Jwts.builder()
+                .subject("gestor@ford.com")
+                .issuer("ford-retention-ai")
+                .claim("uid", 3L)
+                .claim("role", "GESTOR_CONCESSIONARIA")
+                .signWith(Keys.hmacShaKeyFor(SEGREDO.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
+                .compact();
+
+        assertThatThrownBy(() -> jwtService.validarToken(semExp))
+                .isInstanceOf(JwtException.class)
+                .hasMessageContaining("expiração");
     }
 }

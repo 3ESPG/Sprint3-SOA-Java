@@ -24,8 +24,9 @@ app:
   jwt:
     # Segredo HMAC-SHA256 (mínimo 32 caracteres). Obrigatório: vem SEMPRE de variável de ambiente.
     secret: ${JWT_SECRET}
-    # Tempo de vida do token (ISO-8601 ou 1h, 30m...)
-    expiration: ${JWT_EXPIRATION:1h}
+    # Tempo de vida do token (ISO-8601 ou 15m, 1h...). Curto de propósito: não há refresh token nem
+    # lista de revogação, então a validade é a janela máxima de uso de um token vazado.
+    expiration: ${JWT_EXPIRATION:15m}
     issuer: ${JWT_ISSUER:ford-retention-ai}
   rate-limit:
     habilitado: ${RATE_LIMIT_ENABLED:true}

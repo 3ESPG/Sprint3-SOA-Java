@@ -152,7 +152,7 @@ Há um modelo em [`.env.example`](.env.example).
 | Variável | Obrigatória | Padrão | Descrição |
 |---|---|---|---|
 | `JWT_SECRET` | **sim** | – | Segredo HMAC do JWT, com no mínimo 32 caracteres. Nunca fica no código. |
-| `JWT_EXPIRATION` | não | `1h` | Validade do token (`30m`, `2h`, `PT1H`…). |
+| `JWT_EXPIRATION` | não | `15m` | Validade do token (`30m`, `2h`, `PT1H`…). |
 | `JWT_ISSUER` | não | `ford-retention-ai` | Claim `iss`, validada na leitura do token. |
 | `SPRING_PROFILES_ACTIVE` | não | `dev` | `dev` (H2 + data.sql) ou `prod` (Oracle). |
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | no `prod` | – | Conexão Oracle. |

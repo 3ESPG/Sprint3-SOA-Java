@@ -39,3 +39,6 @@ build/
 .DS_Store
 ### Segredos locais ###
 .env
+
+### IntelliJ (local) ###
+.idea/workspace.xml

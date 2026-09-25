@@ -1,0 +1,147 @@
+# Pipeline DevSecOps – Ford Retention AI (API Java / Spring Boot)
+#
+#   secrets ─┐
+#   sast ────┤
+#   sca ─────┼──► security-gate  (branch protection exige este check na main)
+#   build ───┤
+#   iac ─────┤
+#   container┘ (depende de build)
+#
+# Qualquer achado HIGH/CRITICAL, segredo vazado ou teste quebrado falha o gate e bloqueia o merge.
+name: devsecops
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # toda segunda às 06:00 UTC: pega CVEs novas em dependências que não mudaram
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+# Menor privilégio: o token do workflow só lê o repositório (jobs pedem mais quando precisam)
+permissions:
+  contents: read
+
+concurrency:
+  group: devsecops-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TRIVY_IMAGE: aquasec/trivy:0.74.0
+  IMAGE_NAME: ford-retention-ai
+
+jobs:
+  secrets:
+    name: Secret scanning (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # histórico completo: segredo apagado em commit antigo também conta
+      - name: Gitleaks
+        run: |
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.30.1 \
+            detect --source /repo --config /repo/.gitleaks.toml --redact --verbose --exit-code 1
+
+  sast:
+    name: SAST (Semgrep)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Semgrep (OWASP Top 10 + Java + secrets)
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src semgrep/semgrep:1.178.0 \
+            semgrep scan --config p/owasp-top-ten --config p/java --config p/secrets \
+            --severity ERROR --error --metrics off \
+            --sarif --output semgrep.sarif
+      - name: Publicar resultado na aba Security
+        if: always()
+        continue-on-error: true # upload de SARIF exige GitHub Advanced Security em repositório privado
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: semgrep-sarif
+          path: semgrep.sarif
+
+  sca:
+    name: SCA (Trivy – dependências Maven)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Trivy fs (vulnerabilidades e licenças das dependências)
+        run: |
+          docker run --rm -v "$PWD:/src" ${TRIVY_IMAGE} fs /src \
+            --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --format table
+
+  build-test:
+    name: Build + testes (JUnit, MockMvc, JaCoCo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: mvn verify
+        # os testes usam o perfil "test" com segredos fictícios próprios; nenhum segredo real no CI
+        run: mvn -B verify
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: relatorios-testes
+          path: |
+            target/surefire-reports/
+            target/site/jacoco/
+
+  iac:
+    name: IaC / Dockerfile (Trivy config)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Trivy config (Dockerfile, workflows, YAML)
+        run: |
+          docker run --rm -v "$PWD:/src" ${TRIVY_IMAGE} config /src \
+            --severity HIGH,CRITICAL --exit-code 1
+
+  container:
+    name: Container (build + Trivy image)
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v7
+      - name: docker build
+        run: docker build -t ${IMAGE_NAME}:${{ github.sha }} .
+      - name: Imagem roda como usuário não-root
+        run: |
+          user=$(docker inspect --format '{{.Config.User}}' ${IMAGE_NAME}:${{ github.sha }})
+          echo "Config.User=$user"
+          test -n "$user" && test "$user" != "root" && test "$user" != "0"
+      - name: Trivy image (SO + bibliotecas do JAR)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock ${TRIVY_IMAGE} image \
+            --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 ${IMAGE_NAME}:${{ github.sha }}
+
+  security-gate:
+    name: security-gate
+    runs-on: ubuntu-latest
+    needs: [secrets, sast, sca, build-test, iac, container]
+    if: always()
+    steps:
+      - name: Todos os controles passaram?
+        run: |
+          echo '${{ toJSON(needs) }}' | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          if echo '${{ toJSON(needs) }}' | jq -e 'to_entries | any(.value.result != "success")' > /dev/null; then
+            echo "::error::Gate de segurança reprovado: corrija os achados antes do merge."
+            exit 1
+          fi
+          echo "Gate de segurança aprovado."

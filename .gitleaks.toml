@@ -1,0 +1,13 @@
+# Gitleaks: regras padrão + exceções para valores que são de teste/exemplo por design.
+title = "Ford Retention AI"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Segredos fictícios de testes automatizados e placeholders documentados"
+paths = [
+  '''src/test/resources/application-test\.yml''',
+  '''src/test/java/.*Test\.java''',
+  '''\.env\.example''',
+]

@@ -1,7 +1,9 @@
 package br.com.fiap.fordretention.model;
 
 import br.com.fiap.fordretention.model.enums.PerfilCliente;
+import br.com.fiap.fordretention.security.crypto.CampoCifradoConverter;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -30,7 +32,9 @@ public class Cliente {
     @Column(nullable = false, unique = true, length = 150)
     private String email;
 
-    @Column(length = 20)
+    /** Dado pessoal (LGPD): gravado cifrado com AES-256-GCM; ~60 caracteres no banco. */
+    @Convert(converter = CampoCifradoConverter.class)
+    @Column(length = 100)
     private String telefone;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)

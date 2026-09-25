@@ -16,3 +16,12 @@ app:
     # Segredo exclusivo dos testes automatizados (nunca usado fora deles)
     secret: test-secret-para-testes-automatizados-0123456789
     expiration: 1h
+  crypto:
+    # Chave exclusiva dos testes automatizados (nunca usada fora deles)
+    field-key: dGVzdGUtY2hhdmUtYWVzLTI1Ni0zMi1ieXRlcy0wMDA=
+  # Os testes de integração compartilham o mesmo IP/usuários: limites altos aqui.
+  # O comportamento do 429 é coberto por RateLimitIT com limites baixos.
+  rate-limit:
+    login-por-minuto: 10000
+    autenticado-por-minuto: 10000
+    anonimo-por-minuto: 10000

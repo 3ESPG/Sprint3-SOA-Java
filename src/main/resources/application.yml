@@ -24,9 +24,18 @@ app:
   jwt:
     # Segredo HMAC-SHA256 (mínimo 32 caracteres). Obrigatório: vem SEMPRE de variável de ambiente.
     secret: ${JWT_SECRET}
-    # Tempo de vida do token (ISO-8601 ou 1h, 30m...)
-    expiration: ${JWT_EXPIRATION:1h}
+    # Tempo de vida do token (ISO-8601 ou 15m, 1h...). Curto de propósito: não há refresh token nem
+    # lista de revogação, então a validade é a janela máxima de uso de um token vazado.
+    expiration: ${JWT_EXPIRATION:15m}
     issuer: ${JWT_ISSUER:ford-retention-ai}
+  crypto:
+    # AES-256 em Base64 (32 bytes) para dados pessoais em repouso. Obrigatório, via variável de ambiente.
+    field-key: ${FIELD_ENCRYPTION_KEY}
+  rate-limit:
+    habilitado: ${RATE_LIMIT_ENABLED:true}
+    login-por-minuto: ${RATE_LIMIT_LOGIN:5}
+    autenticado-por-minuto: ${RATE_LIMIT_USUARIO:100}
+    anonimo-por-minuto: ${RATE_LIMIT_ANONIMO:60}
   lead:
     # Score mínimo (0..1) para gerar lead automático para perfis ABANDONO/ESQUECIDO
     score-limite: ${LEAD_SCORE_LIMITE:0.70}
@@ -37,10 +46,19 @@ management:
   endpoints:
     web:
       exposure:
-        include: health
+        # Só o necessário: health (probes) e prometheus (métricas). env, beans, heapdump etc. ficam fechados.
+        include: health,prometheus
   endpoint:
     health:
       show-details: never
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
 springdoc:
   swagger-ui:

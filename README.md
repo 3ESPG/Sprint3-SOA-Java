@@ -38,7 +38,8 @@ e o parque antigo ainda é cerca de 70% da frota. Esta API é o back-end da solu
 8. [Exemplos com curl](#exemplos-com-curl)
 9. [Tratamento de erros](#tratamento-de-erros)
 10. [Testes e cobertura](#testes-e-cobertura)
-11. [Mapa dos critérios de avaliação](#mapa-dos-critérios-de-avaliação)
+11. [Segurança e DevSecOps](#segurança-e-devsecops)
+12. [Mapa dos critérios de avaliação](#mapa-dos-critérios-de-avaliação)
 
 ---
 
@@ -49,6 +50,9 @@ e o parque antigo ainda é cerca de 70% da frota. Esta API é o back-end da solu
 | Linguagem / build | Java 21, Maven |
 | Framework | Spring Boot 3.5 (Web, Data JPA, Security, Validation, Actuator) |
 | Autenticação | JWT HS256 com **jjwt 0.12**, senhas com **BCrypt** |
+| Segurança | Rate limiting com **Bucket4j**, **AES-256-GCM** para dados pessoais, logs estruturados em JSON |
+| Observabilidade | Actuator + **Micrometer/Prometheus** |
+| DevSecOps | GitHub Actions (Gitleaks, Semgrep, Trivy), Dependabot, Dockerfile não-root |
 | Banco | **H2** em memória (dev/test) e **Oracle** (perfil `prod`) |
 | Documentação | springdoc-openapi 2.8 (Swagger UI) |
 | Testes | JUnit 5, Mockito, MockMvc, spring-security-test, AssertJ, JaCoCo |
@@ -82,7 +86,7 @@ sequenceDiagram
     participant F as JwtAuthenticationFilter
     participant Ctl as Controller
     C->>Ctl: POST /auth/login {email, senha}
-    Ctl-->>C: 200 {accessToken (sub, role, concessionariaId, iat, exp)}
+    Ctl-->>C: 200 {accessToken (sub, role, concessionariaId, jti, iat, exp)}
     C->>F: GET /leads  Authorization: Bearer <jwt>
     F->>F: valida assinatura + expiração → SecurityContext
     F->>Ctl: @PreAuthorize(role) → service aplica concessionariaId do token
@@ -96,18 +100,29 @@ Camadas: `controller → service → repository`, com `dto`, `mapper`, `security
 **Pré-requisitos:** JDK 21+ e Maven 3.9+.
 
 ```bash
-# 1. Segredo do JWT: obrigatório, a aplicação não sobe sem ele
-export JWT_SECRET="$(openssl rand -base64 48)"
+# 1. Segredos obrigatórios: a aplicação não sobe sem eles
+export JWT_SECRET="$(openssl rand -base64 48)"            # assinatura do JWT
+export FIELD_ENCRYPTION_KEY="$(openssl rand -base64 32)"  # AES-256 dos dados pessoais
 
 # 2. Subir no perfil dev (H2 em memória + dados de exemplo do data.sql)
 mvn spring-boot:run
+
+# (opcional) logs em JSON, como em produção
+LOGGING_STRUCTURED_FORMAT_CONSOLE=logstash mvn spring-boot:run
 ```
 
 Ou gere o jar:
 
 ```bash
 mvn clean package
-JWT_SECRET="$(openssl rand -base64 48)" java -jar target/ford-retention-ai-1.0.0.jar
+java -jar target/ford-retention-ai-1.0.0.jar   # com as variáveis acima exportadas
+```
+
+Ou com Docker (perfil `prod`, segredos passados em runtime, nunca na imagem):
+
+```bash
+docker build -t ford-retention-ai .
+docker run --env-file .env -p 8080:8080 ford-retention-ai
 ```
 
 | Recurso | URL |
@@ -116,6 +131,7 @@ JWT_SECRET="$(openssl rand -base64 48)" java -jar target/ford-retention-ai-1.0.0
 | Swagger UI | http://localhost:8080/swagger-ui.html |
 | OpenAPI JSON | http://localhost:8080/v3/api-docs |
 | Health check | http://localhost:8080/actuator/health |
+| Métricas (Prometheus) | http://localhost:8080/actuator/prometheus (no `prod`, porta interna `9091`) |
 
 No Swagger, faça login em `POST /auth/login`, copie o `accessToken`, clique em **Authorize** e cole o token.
 
@@ -144,6 +160,9 @@ SPRING_PROFILES_ACTIVE=prod mvn spring-boot:run
   `CONCESSIONARIAS` estiver vazia, então rodar de novo não duplica nada.
 - **Conexões:** o pool de conexões é pequeno (3), porque o Oracle da FIAP é compartilhado e limita sessões
   por usuário.
+- **Telefone cifrado:** se as tabelas foram criadas antes da versão com criptografia, aumente a coluna uma vez:
+  `ALTER TABLE clientes MODIFY telefone VARCHAR2(100);`. Os telefones antigos em texto puro são cifrados
+  automaticamente na próxima subida.
 
 ## Variáveis de ambiente
 
@@ -152,7 +171,8 @@ Há um modelo em [`.env.example`](.env.example).
 | Variável | Obrigatória | Padrão | Descrição |
 |---|---|---|---|
 | `JWT_SECRET` | **sim** | – | Segredo HMAC do JWT, com no mínimo 32 caracteres. Nunca fica no código. |
-| `JWT_EXPIRATION` | não | `1h` | Validade do token (`30m`, `2h`, `PT1H`…). |
+| `FIELD_ENCRYPTION_KEY` | **sim** | – | Chave AES-256 (Base64, 32 bytes) que cifra o telefone dos clientes no banco. `openssl rand -base64 32` |
+| `JWT_EXPIRATION` | não | `15m` | Validade do token (`30m`, `2h`, `PT1H`…). Curta porque não há revogação de token. |
 | `JWT_ISSUER` | não | `ford-retention-ai` | Claim `iss`, validada na leitura do token. |
 | `SPRING_PROFILES_ACTIVE` | não | `dev` | `dev` (H2 + data.sql) ou `prod` (Oracle). |
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | no `prod` | – | Conexão Oracle. |
@@ -162,6 +182,10 @@ Há um modelo em [`.env.example`](.env.example).
 | `LEAD_SCORE_LIMITE` | não | `0.70` | Score mínimo para gerar lead automático. |
 | `CORS_ALLOWED_ORIGINS` | não | localhost 3000/8081/19006 | Origens do dashboard e do app. |
 | `SERVER_PORT` | não | `8080` | Porta HTTP. |
+| `MANAGEMENT_PORT` | não | `9091` (prod) | Porta interna do Actuator no `prod`. |
+| `RATE_LIMIT_LOGIN` / `RATE_LIMIT_USUARIO` / `RATE_LIMIT_ANONIMO` | não | `5` / `100` / `60` | Requisições por minuto (login por IP, por usuário autenticado, anônimas por IP). |
+| `RATE_LIMIT_ENABLED` | não | `true` | Liga/desliga o rate limiting. |
+| `LOG_FORMAT` | não | `logstash` (prod) | Formato dos logs estruturados no `prod`. |
 
 ## Usuários de teste
 
@@ -184,11 +208,15 @@ para 4–6 anos e **0%** para 7+ anos.
 
 ## Autenticação e autorização
 
-- **Públicos:** `POST /auth/login`, `POST /auth/register`, Swagger (`/swagger-ui/**`, `/v3/api-docs/**`)
-  e `GET /actuator/health`. Todo o resto exige `Authorization: Bearer <token>`.
+- **Públicos:** `POST /auth/login`, `POST /auth/register`, Swagger (`/swagger-ui/**`, `/v3/api-docs/**`),
+  `GET /actuator/health` e `GET /actuator/prometheus`. Os demais endpoints do Actuator são negados. Todo o
+  resto exige `Authorization: Bearer <token>`.
 - **JWT:** gerado no login com as claims `sub` (e-mail), `uid`, `nome`, `role`, `concessionariaId`
-  (ausente para ADMIN), `iss`, `iat` e `exp`. Um `OncePerRequestFilter` valida assinatura, emissor e
-  expiração. Token ausente, inválido ou expirado resulta em **401**.
+  (ausente para ADMIN), `jti`, `iss`, `iat` e `exp`, com validade padrão de **15 minutos**. Um
+  `OncePerRequestFilter` valida assinatura, emissor e expiração, e recusa token sem `exp`. Token ausente,
+  inválido ou expirado resulta em **401**.
+- **Rate limiting:** `POST /auth/login` aceita 5 tentativas por minuto por IP; usuários autenticados,
+  100 requisições por minuto. Acima disso a resposta é **429** com o header `Retry-After`.
 - **Perfis:**
   - **ADMIN:** acesso total. É o único que grava o perfil do ML, cria concessionárias e usuários e exclui leads.
   - **GESTOR_CONCESSIONARIA:** CRUD de clientes, veículos, serviços e leads **apenas da própria
@@ -225,7 +253,7 @@ Todas as listagens são paginadas (`?page=0&size=20&sort=campo,asc`, máximo de 
 \* O filtro `concessionariaId` só vale para o ADMIN. Para os demais perfis, ele é sempre substituído pela
 concessionária do token.
 
-**Status codes usados:** 200, 201 (com header `Location`), 204, 400, 401, 403, 404, 409 e 422.
+**Status codes usados:** 200, 201 (com header `Location`), 204, 400, 401, 403, 404, 409, 413, 422 e 429.
 
 ### Regras de negócio principais
 
@@ -315,7 +343,9 @@ O `GlobalExceptionHandler` (`@RestControllerAdvice`) trata:
 - **404:** recurso inexistente ou rota inexistente.
 - **405 / 415:** método ou Content-Type não suportado.
 - **409:** conflito ou violação de integridade.
+- **413:** corpo da requisição acima de 64 KB.
 - **422:** regra de negócio violada.
+- **429:** limite de requisições excedido (header `Retry-After` em segundos).
 - **500:** erro genérico, logado sem expor detalhes internos.
 
 ## Testes e cobertura
@@ -324,9 +354,10 @@ O `GlobalExceptionHandler` (`@RestControllerAdvice`) trata:
 mvn test
 ```
 
-Esse comando roda **150 testes** e gera o relatório do JaCoCo em
+Esse comando roda **169 testes** e gera o relatório do JaCoCo em
 **`target/site/jacoco/index.html`** (também há `jacoco.xml` e `jacoco.csv` para CI).
-A cobertura atual é de cerca de **86% das linhas**.
+A cobertura atual é de cerca de **87% das linhas**. No GitHub, o mesmo `mvn verify` roda a cada PR no
+pipeline `devsecops`.
 
 Para rodar só uma classe ou um grupo de testes:
 
@@ -339,11 +370,24 @@ mvn test -Dtest='*Test'      # apenas unitários
 | Tipo | Classes | O que cobrem |
 |---|---|---|
 | Unitários (Mockito) | `LeadServiceTest`, `PerfilClienteServiceTest`, `ServiceShareServiceTest`, `ConcessionariaServiceTest`, `VeiculoServiceTest`, `ServicoServiceTest`, `UsuarioServiceTest` | Regras de negócio, geração automática de leads, cálculo do Service Share, escopo, 404, 409 e 422 |
-| Unitários | `JwtServiceTest`, `RegrasDominioTest` | Claims do JWT, expiração, assinatura adulterada, emissor, segredo fraco, máquina de estados e prioridade |
-| Integração (MockMvc) | `AuthControllerIT`, `SegurancaIT`, `ConcessionariaControllerIT`, `ClienteControllerIT`, `PerfilClienteControllerIT`, `VeiculoControllerIT`, `ServicoControllerIT`, `LeadControllerIT`, `UsuarioControllerIT` | Fluxo HTTP completo com **JWT real** e com `@WithMockUser`: sucesso (200/201/204), **400**, **401** (sem token, inválido, expirado), **403** (role errada), **404**, 409 e 422 |
+| Unitários | `JwtServiceTest`, `RegrasDominioTest`, `CriptografiaCampoTest` | Claims do JWT, expiração, token sem `exp`, assinatura adulterada, emissor, segredo fraco, máquina de estados, prioridade e AES-GCM (IV, adulteração, chave errada) |
+| Integração (MockMvc) | `AuthControllerIT`, `SegurancaIT`, `ConcessionariaControllerIT`, `ClienteControllerIT`, `PerfilClienteControllerIT`, `VeiculoControllerIT`, `ServicoControllerIT`, `LeadControllerIT`, `UsuarioControllerIT` | Fluxo HTTP completo com **JWT real** e com `@WithMockUser`: sucesso (200/201/204), **400**, **401** (sem token, inválido, expirado), **403** (role errada), **404**, 409, 413 e 422 |
+| Integração de segurança | `RateLimitIT`, `IsolamentoConcessionariaIT`, `CriptografiaDadosPessoaisIT`, `ActuatorIT` | **429** no login e por usuário, isolamento entre concessionárias (BOLA), telefone cifrado no banco e Actuator restrito |
 
 Os testes de integração usam o perfil `test` (H2 isolado, sem `data.sql`). Cada teste monta o próprio
 cenário e roda em uma transação revertida ao final.
+
+## Segurança e DevSecOps
+
+Detalhes, mapa para OWASP/LGPD e roteiro de testes em **[README-SECURITY.md](README-SECURITY.md)**. Resumo:
+
+- **Pipeline** [`.github/workflows/devsecops.yml`](.github/workflows/devsecops.yml), a cada PR, push na `main`,
+  semanalmente e sob demanda: Gitleaks (segredos), Semgrep (SAST), Trivy (dependências, Dockerfile e imagem),
+  `mvn verify` e o job **`security-gate`**, que precisa passar para o merge na `main`.
+- **Dependabot** para Maven, GitHub Actions e imagens Docker.
+- **Container** multi-stage, só com JRE, usuário não-root e sem segredos na imagem.
+- **Logs estruturados** (JSON no `prod`) com `traceId` e eventos como `auth.login_falha`,
+  `authz.acesso_negado`, `rate_limit.excedido` e `lead.status_alterado`, sem dados pessoais.
 
 ## Mapa dos critérios de avaliação
 
@@ -351,7 +395,7 @@ cenário e roda em uma transação revertida ao final.
 |---|---|
 | Arquitetura (20%) | `docs/ARQUITETURA.md` (5 diagramas Mermaid) e `docs/Ford-Retention-AI-Arquitetura.pdf`, pacotes `controller/service/repository/dto/mapper/security/exception/config` |
 | Autenticação e autorização (20%) | `config/SecurityConfig`, `@PreAuthorize` nos controllers, `service/EscopoAcessoService`, BCrypt, auto-cadastro com aprovação |
-| JWT (15%) | `security/JwtService`, `JwtAuthenticationFilter`, `JwtProperties` (segredo via `JWT_SECRET`, expiração configurável) |
+| JWT (15%) | `security/JwtService`, `JwtAuthenticationFilter`, `JwtProperties` (segredo via `JWT_SECRET`, validade de 15 min, `jti`, token sem `exp` recusado) |
 | Maturidade REST nível 2 (20%) | Recursos no plural, verbos corretos, 201 + Location, 204, 400–422, paginação e filtros, `/concessionarias/{id}/service-share` |
-| Testes automatizados (15%) | 150 testes (Mockito + MockMvc + spring-security-test) e JaCoCo |
+| Testes automatizados (15%) | 169 testes (Mockito + MockMvc + spring-security-test) e JaCoCo, rodando no GitHub Actions |
 | Documentação e erros (10%) | Swagger com esquema Bearer, `@RestControllerAdvice` com `ApiError`, este README |

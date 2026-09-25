@@ -1,0 +1,25 @@
+# SCA contínuo: PRs automáticos de atualização (as de segurança são abertas assim que a CVE sai).
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels: ["dependencies", "security"]
+    groups:
+      spring:
+        patterns: ["org.springframework*", "io.micrometer*"]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "ci"]
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels: ["dependencies", "docker"]

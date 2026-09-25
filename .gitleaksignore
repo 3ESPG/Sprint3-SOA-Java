@@ -1,0 +1,4 @@
+# Falsos positivos revisados (formato: commit:arquivo:regra:linha).
+# README-SECURITY.md: exemplo de curl com token propositalmente inválido ("abc.def.ghi") para demonstrar 401.
+# Corrigido no commit seguinte (token passou para variável); a entrada cobre o commit antigo no histórico.
+d68bf0ee015066f6e9c79b6705e16307cd0a18a7:README-SECURITY.md:curl-auth-header:63

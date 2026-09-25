@@ -12,10 +12,12 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * Geração e validação de JWT (HS256).
- * Claims: sub (e-mail), uid, nome, role, concessionariaId (ausente para ADMIN), iss, iat e exp.
+ * Claims: sub (e-mail), uid, nome, role, concessionariaId (ausente para ADMIN), jti, iss, iat e exp.
+ * Nada sensível vai no payload (ele é apenas Base64, não cifrado): sem senha, telefone ou dados de cliente.
  */
 @Service
 public class JwtService {
@@ -38,6 +40,7 @@ public class JwtService {
     public String gerarToken(UsuarioAutenticado usuario) {
         Instant agora = clock.instant();
         return Jwts.builder()
+                .id(UUID.randomUUID().toString())
                 .subject(usuario.email())
                 .issuer(properties.issuer())
                 .claim(CLAIM_UID, usuario.id())
@@ -65,6 +68,10 @@ public class JwtService {
                 .parseSignedClaims(token)
                 .getPayload();
 
+        // No jjwt o exp é opcional; um token sem exp nunca expiraria, então é recusado aqui.
+        if (claims.getExpiration() == null) {
+            throw new JwtException("Token sem data de expiração");
+        }
         Role role = Role.valueOf(claims.get(CLAIM_ROLE, String.class));
         return new UsuarioAutenticado(
                 comoLong(claims.get(CLAIM_UID)),

@@ -1,0 +1,11 @@
+# nunca enviar segredos, histórico git ou builds locais para o contexto do Docker
+.env
+.env.*
+!.env.example
+.git
+.github
+.idea
+*.iml
+target
+docs
+*.md

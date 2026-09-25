@@ -10,7 +10,7 @@ RUN mvn -B -q -DskipTests package && cp target/ford-retention-ai-*.jar /app/app.
 
 # ---------- runtime ----------
 # Apenas JRE (sem JDK, Maven ou código-fonte) em Alpine: superfície de ataque menor
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:26-jre-alpine
 LABEL org.opencontainers.image.title="ford-retention-ai" \
       org.opencontainers.image.description="API Ford Retention AI (Challenge FIAP 2026 - Desafio 02)"
 

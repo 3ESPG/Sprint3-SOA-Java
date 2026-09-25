@@ -10,41 +10,36 @@ para as concessionárias.
 ## 1. Visão de componentes
 
 ```mermaid
-flowchart LR
-    subgraph Consumidores
-        APP["📱 App Mobile<br/>(React Native)<br/>Consultores e gestores"]
-        DASH["📊 Dashboard<br/>Service Share por concessionária,<br/>modelo, idade e tipo de serviço"]
-        ML["🤖 Serviço de ML (Python)<br/>Random Forest ~95%<br/>Fiel · Abandono · Esquecido · Econômico"]
-    end
+flowchart TB
+    APP["<b>App Mobile</b><br/>React Native<br/>consultores e gestores"]:::consumidor
+    DASH["<b>Dashboard</b><br/>Service Share por concessionária,<br/>modelo, idade e tipo de serviço"]:::consumidor
+    ML["<b>Serviço de ML</b> (Python)<br/>Random Forest ~95%<br/>Fiel · Abandono · Esquecido · Econômico"]:::consumidor
 
-    subgraph API["Ford Retention AI – Spring Boot 3 / Java 21"]
-        direction TB
-        SEC["security<br/>SecurityFilterChain<br/>JwtAuthenticationFilter<br/>JwtService · EntryPoint 401 · AccessDenied 403"]
-        CTRL["controller<br/>Auth · Usuarios · Concessionarias · Clientes<br/>Perfil · Veiculos · Servicos · Leads"]
-        DTO["dto (records)<br/>+ Bean Validation"]
-        MAP["mapper<br/>Entity ⇄ DTO"]
-        SRV["service<br/>regras de negócio<br/>escopo por concessionária<br/>cálculo do Service Share<br/>geração automática de leads"]
-        REPO["repository<br/>Spring Data JPA<br/>+ Specifications (filtros)"]
-        EXC["exception<br/>@RestControllerAdvice<br/>padrão único de erro"]
-        CFG["config<br/>SecurityConfig · OpenApiConfig"]
-        DOC["Swagger UI<br/>springdoc-openapi"]
-    end
-
-    DB[("Banco de dados<br/>H2 (dev/test)<br/>Oracle (prod)")]
+    SEC["<b>security</b><br/>SecurityFilterChain · JwtAuthenticationFilter<br/>JwtService · EntryPoint 401 · AccessDenied 403"]:::api
+    CTRL["<b>controller</b> (@PreAuthorize)<br/>Auth · Usuarios · Concessionarias · Clientes<br/>Perfil · Veiculos · Servicos · Leads"]:::api
+    SRV["<b>service</b><br/>regras de negócio · escopo por concessionária<br/>cálculo do Service Share · leads automáticos"]:::api
+    REPO["<b>repository</b><br/>Spring Data JPA + Specifications"]:::api
+    DTO["<b>dto</b><br/>records + Bean Validation"]:::apoio
+    MAP["<b>mapper</b><br/>Entity ⇄ DTO"]:::apoio
+    EXC["<b>exception</b><br/>@RestControllerAdvice<br/>padrão único de erro"]:::apoio
+    CFG["<b>config</b><br/>SecurityConfig · OpenApiConfig"]:::apoio
+    DOC["<b>Swagger UI</b><br/>springdoc-openapi"]:::apoio
+    DB[("<b>Banco de dados</b><br/>H2 (dev/test) · Oracle 19c (prod)")]:::banco
 
     APP -- "HTTPS + Bearer JWT" --> SEC
     DASH -- "HTTPS + Bearer JWT" --> SEC
-    ML -- "PUT /clientes/{id}/perfil<br/>(perfil + scoreRisco)" --> SEC
-    SEC --> CTRL
-    CTRL <--> DTO
-    CTRL --> SRV
-    SRV <--> MAP
-    SRV --> REPO
-    REPO --> DB
+    ML -- "PUT /clientes/{id}/perfil" --> SEC
+    SEC --> CTRL --> SRV --> REPO --> DB
+    SEC -. configurado por .- CFG
+    CFG -.- DOC
+    CTRL <-.-> DTO
     CTRL -. exceções .-> EXC
-    SRV -. exceções .-> EXC
-    CFG -. configura .-> SEC
-    CFG -. configura .-> DOC
+    SRV <-.-> MAP
+
+    classDef consumidor fill:#E3ECFA,stroke:#1F5BA8,stroke-width:2px
+    classDef api fill:#003478,stroke:#003478,color:#FFFFFF
+    classDef apoio fill:#F4F7FB,stroke:#9FB3D1
+    classDef banco fill:#FFF6DB,stroke:#C9A13B
 ```
 
 ### Responsabilidades por camada
@@ -71,48 +66,63 @@ flowchart LR
 
 ## 2. Fluxo de autenticação e requisição protegida
 
+### 2.1 Login
+
 ```mermaid
 sequenceDiagram
     autonumber
-    actor U as App / Dashboard
-    participant F as SecurityFilterChain
+    participant U as App / Dashboard
     participant AC as AuthController
-    participant AM as AuthenticationManager
-    participant UDS as UsuarioDetailsService
+    participant AM as Authentication<br/>Manager
+    participant UDS as UsuarioDetails<br/>Service
+    participant DB as Banco
     participant JS as JwtService
-    participant JF as JwtAuthenticationFilter
-    participant C as Controller (@PreAuthorize)
+
+    Note over U,AC: POST /auth/login é público (permitAll)
+    U->>AC: POST /auth/login {email, senha}
+    AC->>AM: authenticate(email, senha)
+    AM->>UDS: loadUserByUsername(email)
+    UDS->>DB: busca usuário por e-mail
+    DB-->>UDS: usuário + hash BCrypt
+    UDS-->>AM: UsuarioAutenticado
+    AM->>AM: BCrypt.matches(senha, hash) e conta ativa?
+    alt credenciais inválidas ou conta pendente
+        AM-->>U: 401 (formato padrão de erro)
+    else autenticado
+        AM-->>AC: Authentication
+        AC->>JS: gerarToken(usuario)
+        JS-->>AC: JWT HS256 (sub, uid, role,<br/>concessionariaId, iat, exp)
+        AC-->>U: 200 {accessToken, tokenType, expiresIn, usuario}
+    end
+```
+
+### 2.2 Requisição protegida
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as App / Dashboard
+    participant JF as JwtAuthentication<br/>Filter
+    participant JS as JwtService
+    participant C as Controller
     participant S as Service
     participant R as Repository
 
-    Note over U,AC: 1) Login (endpoint público)
-    U->>F: POST /auth/login {email, senha}
-    F->>AC: permitAll
-    AC->>AM: authenticate(email, senha)
-    AM->>UDS: loadUserByUsername(email)
-    UDS-->>AM: Usuario (hash BCrypt)
-    AM-->>AC: autenticado (BCrypt.matches)
-    AC->>JS: gerarToken(usuario)
-    JS-->>AC: JWT (sub, role, concessionariaId, iat, exp)<br/>assinado HS256 com JWT_SECRET
-    AC-->>U: 200 {accessToken, tokenType, expiresIn, role}
-
-    Note over U,R: 2) Requisição protegida
-    U->>F: GET /leads?status=ABERTO<br/>Authorization: Bearer <jwt>
-    F->>JF: doFilterInternal
-    JF->>JS: validar assinatura + expiração
+    U->>JF: GET /leads?status=ABERTO<br/>Authorization: Bearer <jwt>
+    JF->>JS: validarToken(jwt)
     alt token ausente, inválido ou expirado
-        JF-->>U: 401 (AuthenticationEntryPoint, JSON padrão)
+        JF-->>U: 401 (AuthenticationEntryPoint)
     else token válido
-        JF->>F: SecurityContext ← UsuarioAutenticado(id, email, role, concessionariaId)
-        F->>C: autorização por URL + @PreAuthorize
-        alt role sem permissão
-            C-->>U: 403 (AccessDeniedHandler, JSON padrão)
+        JS-->>JF: UsuarioAutenticado (role, concessionariaId)
+        JF->>C: SecurityContext preenchido
+        alt role sem permissão (URL ou @PreAuthorize)
+            C-->>U: 403 (AccessDeniedHandler)
         else autorizado
-            C->>S: listar(filtros, pageable, usuario)
-            S->>S: se GESTOR/CONSULTOR → força concessionariaId do token
+            C->>S: listar(filtros, pageable)
+            S->>S: GESTOR/CONSULTOR: força o<br/>concessionariaId do token
             S->>R: findAll(Specification, Pageable)
             R-->>S: Page<Lead>
-            S-->>C: Page<LeadResponse>
+            S-->>C: PageResponse<LeadResponse>
             C-->>U: 200 + página JSON
         end
     end
@@ -126,8 +136,8 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     participant ML as Notebook Python (Random Forest)
-    participant PC as PerfilClienteController
-    participant PS as PerfilClienteService
+    participant PC as PerfilCliente<br/>Controller
+    participant PS as PerfilCliente<br/>Service
     participant LS as LeadService
     participant DB as Banco
 
@@ -255,7 +265,6 @@ Service Share (concessionária X, janela de 12 meses) =
 | `POST /leads`, `PUT /leads/{id}` | ✅ | própria | ❌ 403 |
 | `PATCH /leads/{id}/status` | ✅ | própria | própria |
 | `DELETE /leads/{id}` | ✅ | ❌ 403 | ❌ 403 |
-
 | `GET /usuarios` | todos | própria concessionária | ❌ 403 |
 | `GET /usuarios/{id}` | todos | própria concessionária | só a si mesmo |
 | `POST /usuarios` (qualquer role) | ✅ | ❌ 403 | ❌ 403 |

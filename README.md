@@ -57,8 +57,10 @@ DTOs são `record`s; não usamos Lombok.
 
 ## Arquitetura
 
-O documento completo, com 4 diagramas Mermaid (componentes, sequência de autenticação, fluxo ML → lead e
-modelo ER), está em **[docs/ARQUITETURA.md](docs/ARQUITETURA.md)**. Resumo:
+O documento completo, com 5 diagramas Mermaid (componentes, login, requisição protegida, fluxo ML → lead e
+modelo ER), está em **[docs/ARQUITETURA.md](docs/ARQUITETURA.md)**. Há também uma versão para impressão em
+**[docs/Ford-Retention-AI-Arquitetura.pdf](docs/Ford-Retention-AI-Arquitetura.pdf)**, com os diagramas,
+a matriz de autorização e a integração com o ML. Resumo:
 
 ```mermaid
 flowchart LR
@@ -347,7 +349,7 @@ cenário e roda em uma transação revertida ao final.
 
 | Critério | Onde está |
 |---|---|
-| Arquitetura (20%) | `docs/ARQUITETURA.md` (4 diagramas Mermaid), pacotes `controller/service/repository/dto/mapper/security/exception/config` |
+| Arquitetura (20%) | `docs/ARQUITETURA.md` (5 diagramas Mermaid) e `docs/Ford-Retention-AI-Arquitetura.pdf`, pacotes `controller/service/repository/dto/mapper/security/exception/config` |
 | Autenticação e autorização (20%) | `config/SecurityConfig`, `@PreAuthorize` nos controllers, `service/EscopoAcessoService`, BCrypt, auto-cadastro com aprovação |
 | JWT (15%) | `security/JwtService`, `JwtAuthenticationFilter`, `JwtProperties` (segredo via `JWT_SECRET`, expiração configurável) |
 | Maturidade REST nível 2 (20%) | Recursos no plural, verbos corretos, 201 + Location, 204, 400–422, paginação e filtros, `/concessionarias/{id}/service-share` |

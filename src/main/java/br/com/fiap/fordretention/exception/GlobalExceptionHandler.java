@@ -109,6 +109,10 @@ public class GlobalExceptionHandler {
     /** Lançada por @PreAuthorize (AuthorizationDeniedException) ou pelos services. */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex, HttpServletRequest req) {
+        log.atWarn()
+                .addKeyValue("evento", "authz.acesso_negado")
+                .addKeyValue("camada", "metodo")
+                .log("Acesso negado pelo perfil ou pelo escopo de concessionária");
         String mensagem = ex.getMessage() == null || ex.getMessage().equals("Access Denied")
                 ? "Seu perfil não tem permissão para esta operação"
                 : ex.getMessage();

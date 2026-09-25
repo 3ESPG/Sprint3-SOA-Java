@@ -30,3 +30,7 @@ springdoc:
 logging:
   level:
     root: INFO
+  structured:
+    format:
+      # JSON (formato Logstash) no console: pronto para Loki/Elastic/Azure Monitor.
+      console: ${LOG_FORMAT:logstash}

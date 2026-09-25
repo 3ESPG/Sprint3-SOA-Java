@@ -78,12 +78,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         long retryAfter = Math.max(1, TimeUnit.NANOSECONDS.toSeconds(probe.getNanosToWaitForRefill()));
+        // ip, método, rota e usuarioId já vêm do MDC (TraceIdFilter / JwtAuthenticationFilter)
         log.atWarn()
                 .addKeyValue("evento", "rate_limit.excedido")
                 .addKeyValue("chave", limite.tipo())
-                .addKeyValue("ip", request.getRemoteAddr())
-                .addKeyValue("metodo", request.getMethod())
-                .addKeyValue("rota", request.getRequestURI())
                 .addKeyValue("limitePorMinuto", limite.porMinuto())
                 .log("Limite de requisições excedido");
 

@@ -6,6 +6,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.MDC;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContext;
@@ -52,6 +53,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             SecurityContext contexto = SecurityContextHolder.createEmptyContext();
             contexto.setAuthentication(autenticacao);
             SecurityContextHolder.setContext(contexto);
+            MDC.put("usuarioId", String.valueOf(usuario.id()));
+            MDC.put("role", usuario.role().name());
         } catch (ExpiredJwtException e) {
             SecurityContextHolder.clearContext();
             request.setAttribute(ATRIBUTO_ERRO_JWT, "Token expirado");

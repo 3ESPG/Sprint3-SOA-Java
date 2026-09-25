@@ -19,6 +19,8 @@ import br.com.fiap.fordretention.model.enums.StatusLead;
 import br.com.fiap.fordretention.repository.LeadRepository;
 import br.com.fiap.fordretention.repository.VeiculoRepository;
 import br.com.fiap.fordretention.repository.spec.LeadSpecifications;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +33,8 @@ import java.util.Objects;
 
 @Service
 public class LeadService {
+
+    private static final Logger log = LoggerFactory.getLogger(LeadService.class);
 
     private static final String RECURSO = "Lead";
 
@@ -111,6 +115,12 @@ public class LeadService {
             lead.setObservacao(request.observacao().trim());
         }
         lead.setDataAtualizacao(agora());
+        log.atInfo()
+                .addKeyValue("evento", "lead.status_alterado")
+                .addKeyValue("leadId", lead.getId())
+                .addKeyValue("de", atual)
+                .addKeyValue("para", request.status())
+                .log("Status do lead alterado");
         return mapper.toResponse(lead);
     }
 

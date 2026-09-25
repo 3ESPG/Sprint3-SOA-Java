@@ -1,0 +1,11 @@
+# Mantém os padrões do .gitignore
+:include .gitignore
+
+# Testes: segredos e dados fictícios por design (cobertos pelo Gitleaks com allowlist própria)
+src/test/
+
+# Carga de demonstração (risco aceito e documentado em README-SECURITY.md):
+# hashes BCrypt dos usuários de teste, cuja senha é pública no README. Só são carregados no perfil dev
+# (H2 em memória) ou no Oracle com DB_SEED=always explícito; o padrão em prod é DB_SEED=never.
+src/main/resources/data.sql
+src/main/resources/db/oracle/data.sql

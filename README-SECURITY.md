@@ -61,7 +61,8 @@ CONSULTOR=$(login consultor.sp@fordcentral.com.br)
 
 # 401 – sem token / token inválido
 curl -i $API/leads
-curl -i $API/leads -H "Authorization: Bearer abc.def.ghi"
+INVALIDO=abc.def.ghi
+curl -i $API/leads -H "Authorization: Bearer $INVALIDO"
 
 # 403 – consultor em rota exclusiva da Ford (ADMIN)
 curl -i -X POST $API/concessionarias -H "Authorization: Bearer $CONSULTOR" \
@@ -98,7 +99,21 @@ docker inspect --format '{{.Config.User}}' ford-retention-ai   # → 10001:10001
 docker run --rm aquasec/trivy:0.74.0 image ford-retention-ai    # ou veja o job "container" no Actions
 ```
 
-## 4. Evidências para o documento de Cybersecurity
+## 4. Achados do pipeline e tratamento
+
+Primeira execução do `devsecops` (PR #1) — o pipeline encontrou problemas reais, corrigidos no mesmo PR:
+
+| Job | Achado | Severidade | Tratamento |
+|---|---|---|---|
+| `container` (Trivy image) | `tomcat-embed-core` 10.1.55: CVE-2026-65182, CVE-2026-65905, CVE-2026-68525 | CRITICAL | `tomcat.version` = 10.1.59 no `pom.xml` |
+| `container` (Trivy image) | `libexpat` 2.8.4 na base Alpine: CVE-2026-93990 | HIGH | `apk upgrade --no-cache` no estágio de runtime |
+| `sca` (Trivy fs) | Maven Central respondeu 429 ao Trivy (sem cache de dependências) | — (falha do job) | `mvn dependency:go-offline` com cache + `--offline-scan` |
+| `sast` (Semgrep) | `detected-bcrypt-hash` nos `data.sql` (usuários de demonstração) | Baixa | **Risco aceito**: senha de teste já pública; seed só no dev ou com `DB_SEED=always`. Arquivos em `.semgrepignore` com justificativa |
+| `secrets` (Gitleaks) | `curl-auth-header` no exemplo com token inválido do README-SECURITY | Falso positivo | Exemplo passou a usar variável; fingerprint do commit antigo em `.gitleaksignore` |
+
+Regra: nenhum achado é suprimido sem justificativa escrita no próprio arquivo de exceção.
+
+## 5. Evidências para o documento de Cybersecurity
 
 | # | Evidência | Como gerar |
 |---|---|---|

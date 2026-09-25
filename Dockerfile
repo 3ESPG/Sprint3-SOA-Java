@@ -14,8 +14,10 @@ FROM eclipse-temurin:21-jre-alpine
 LABEL org.opencontainers.image.title="ford-retention-ai" \
       org.opencontainers.image.description="API Ford Retention AI (Challenge FIAP 2026 - Desafio 02)"
 
-# usuário sem privilégios, sem shell de login e com UID fixo
-RUN addgroup -S -g 10001 app && adduser -S -u 10001 -G app -s /sbin/nologin app
+# patches de segurança do SO base (ex.: CVE-2026-93990 na libexpat, apontada pelo Trivy)
+# + usuário sem privilégios, sem shell de login e com UID fixo
+RUN apk upgrade --no-cache && \
+    addgroup -S -g 10001 app && adduser -S -u 10001 -G app -s /sbin/nologin app
 WORKDIR /app
 COPY --from=build --chown=app:app /app/app.jar app.jar
 

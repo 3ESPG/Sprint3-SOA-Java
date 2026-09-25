@@ -77,10 +77,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - name: Trivy fs (vulnerabilidades e licenças das dependências)
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      - name: Resolver dependências (cache ~/.m2)
+        # o Trivy lê a árvore resolvida do ~/.m2 em vez de consultar o Maven Central a cada POM
+        run: mvn -B -q dependency:go-offline
+      - name: Trivy fs (vulnerabilidades das dependências diretas e transitivas)
         run: |
-          docker run --rm -v "$PWD:/src" ${TRIVY_IMAGE} fs /src \
-            --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --format table
+          docker run --rm -v "$PWD:/src" -v "$HOME/.m2:/root/.m2:ro" ${TRIVY_IMAGE} fs /src \
+            --scanners vuln --offline-scan --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 --format table
 
   build-test:
     name: Build + testes (JUnit, MockMvc, JaCoCo)

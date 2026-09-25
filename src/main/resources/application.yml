@@ -1,0 +1,55 @@
+# Configuração comum a todos os perfis.
+# Perfil ativo padrão: dev (H2). Em produção: SPRING_PROFILES_ACTIVE=prod
+spring:
+  application:
+    name: ford-retention-ai
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:dev}
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  data:
+    web:
+      pageable:
+        default-page-size: 20
+        max-page-size: 100
+  jackson:
+    default-property-inclusion: non_null
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    include-message: always
+
+app:
+  jwt:
+    # Segredo HMAC-SHA256 (mínimo 32 caracteres). Obrigatório: vem SEMPRE de variável de ambiente.
+    secret: ${JWT_SECRET}
+    # Tempo de vida do token (ISO-8601 ou 1h, 30m...)
+    expiration: ${JWT_EXPIRATION:1h}
+    issuer: ${JWT_ISSUER:ford-retention-ai}
+  lead:
+    # Score mínimo (0..1) para gerar lead automático para perfis ABANDONO/ESQUECIDO
+    score-limite: ${LEAD_SCORE_LIMITE:0.70}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8081,http://localhost:19006}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+    tags-sorter: alpha
+  api-docs:
+    path: /v3/api-docs

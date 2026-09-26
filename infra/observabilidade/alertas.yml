@@ -1,0 +1,35 @@
+groups:
+  - name: ford-retention-api-seguranca
+    rules:
+      - alert: ForcaBrutaLogin
+        # muitas tentativas de login barradas pelo rate limit (Bucket4j)
+        expr: sum(increase(http_server_requests_seconds_count{uri="/auth/login",status="429"}[5m])) > 20
+        labels: { severity: high }
+        annotations:
+          summary: "Possível força bruta / credential stuffing em /auth/login"
+          runbook: "README-SECURITY.md — plano de resposta, fase Detecção → Análise (filtrar logs auth.login_falha por ip)"
+      - alert: EnumeracaoDeLeads
+        # 404 em /leads/{id} = tentativa de acessar lead de outra concessionária (BOLA)
+        expr: sum(increase(http_server_requests_seconds_count{uri="/leads/{id}",status="404"}[10m])) > 50
+        labels: { severity: critical }
+        annotations:
+          summary: "Possível enumeração de leads (BOLA) — suspender conta e abrir incidente"
+      - alert: AcessosNegadosElevados
+        expr: sum(increase(http_server_requests_seconds_count{status="403"}[10m])) > 30
+        labels: { severity: high }
+        annotations:
+          summary: "Pico de 403: perfil tentando operações não permitidas"
+      - alert: ErrosServidor
+        expr: >
+          sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+          / clamp_min(sum(rate(http_server_requests_seconds_count[5m])), 0.001) > 0.02
+        for: 5m
+        labels: { severity: high }
+        annotations:
+          summary: "Mais de 2% de respostas 5xx"
+      - alert: LatenciaP95Alta
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket[5m]))) > 0.8
+        for: 10m
+        labels: { severity: medium }
+        annotations:
+          summary: "p95 acima de 800 ms"

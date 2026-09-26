@@ -1,0 +1,14 @@
+# Prometheus da API Ford Retention AI
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+rule_files:
+  - alertas.yml
+
+scrape_configs:
+  - job_name: ford-retention-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # dev: mesma porta da API; prod: porta interna MANAGEMENT_PORT (9091), nunca exposta publicamente
+      - targets: ["localhost:8080"]

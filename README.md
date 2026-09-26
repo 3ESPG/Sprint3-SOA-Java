@@ -387,7 +387,10 @@ Detalhes, mapa para OWASP/LGPD e roteiro de testes em **[README-SECURITY.md](REA
 - **Dependabot** para Maven, GitHub Actions e imagens Docker.
 - **Container** multi-stage, só com JRE, usuário não-root e sem segredos na imagem.
 - **Logs estruturados** (JSON no `prod`) com `traceId` e eventos como `auth.login_falha`,
-  `authz.acesso_negado`, `rate_limit.excedido` e `lead.status_alterado`, sem dados pessoais.
+  `authz.acesso_negado`, `authz.fora_do_escopo`, `rate_limit.excedido` e `lead.status_alterado`, sem dados pessoais.
+- **`infra/`**: broker MQTT só com TLS/mTLS e ACL por VIN, Prometheus + Grafana (dashboard "Segurança da API" e
+  alertas de força bruta e enumeração) e scripts de backup cifrado com restauração testada.
+- A branch `main` é protegida: merge só por PR com o check `security-gate` verde.
 
 ## Mapa dos critérios de avaliação
 

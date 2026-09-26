@@ -49,7 +49,7 @@ e o parque antigo ainda é cerca de 70% da frota. Esta API é o back-end da solu
 |---|---|
 | Linguagem / build | Java 21, Maven |
 | Framework | Spring Boot 3.5 (Web, Data JPA, Security, Validation, Actuator) |
-| Autenticação | JWT HS256 com **jjwt 0.12**, senhas com **BCrypt** |
+| Autenticação | JWT HS256 com **jjwt 0.13**, senhas com **BCrypt** |
 | Segurança | Rate limiting com **Bucket4j**, **AES-256-GCM** para dados pessoais, logs estruturados em JSON |
 | Observabilidade | Actuator + **Micrometer/Prometheus** |
 | DevSecOps | GitHub Actions (Gitleaks, Semgrep, Trivy), Dependabot, Dockerfile não-root |

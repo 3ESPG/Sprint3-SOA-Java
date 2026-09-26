@@ -32,5 +32,6 @@ updates:
       # imagens seguem a LTS do projeto (Java 21); patches da mesma tag continuam chegando
       - dependency-name: "eclipse-temurin"
         update-types: ["version-update:semver-major"]
+      # maven só é usada no estágio de build (não vai para a imagem final); o Dependabot trata a troca
+      # de sufixo (eclipse-temurin-21 -> 24) como minor, o que tiraria o build da LTS. Atualização manual.
       - dependency-name: "maven"
-        update-types: ["version-update:semver-major"]

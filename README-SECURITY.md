@@ -21,7 +21,8 @@ com o pipeline DevSecOps que os verifica a cada PR. Cada item tem **commit próp
 | **Dependabot** (maven, actions, docker) | `.github/dependabot.yml` | OWASP A06:2021 | — |
 
 Eventos de log: `auth.login_sucesso`, `auth.login_falha` (e-mail mascarado), `auth.sem_token`,
-`auth.token_invalido`, `authz.acesso_negado`, `rate_limit.excedido`, `lead.status_alterado`,
+`auth.token_invalido`, `authz.acesso_negado`, `authz.fora_do_escopo` (recurso de outra concessionária, respondido como 404),
+`rate_limit.excedido`, `lead.status_alterado`,
 `crypto.migracao_concluida`. Nunca são registrados senha, token, telefone ou dados de cliente.
 
 ## 2. Variáveis de ambiente de segurança
@@ -99,7 +100,27 @@ docker inspect --format '{{.Config.User}}' ford-retention-ai   # → 10001:10001
 docker run --rm aquasec/trivy:0.74.0 image ford-retention-ai    # ou veja o job "container" no Actions
 ```
 
-## 4. Achados do pipeline e tratamento
+## 4. Infraestrutura de segurança (`infra/`)
+
+| Pasta | O que é | Como rodar |
+|---|---|---|
+| `infra/mqtt/` | Broker Mosquitto **só com TLS 1.2+ e mTLS** (porta 8883, sem 1883), CN do certificado = VIN, ACL por tópico, limites de pacote. `gerar-certificados.sh` cria a CA de laboratório, broker, um veículo, o ingestor e um certificado "intruso" para teste. | `cd infra/mqtt && ./gerar-certificados.sh && mosquitto -c mosquitto.conf` |
+| `infra/observabilidade/` | Prometheus (coleta `/actuator/prometheus` + `alertas.yml`: força bruta, enumeração de leads, 403, 5xx, p95) e Grafana provisionado com o dashboard **Segurança da API**. | `prometheus --config.file=prometheus.yml` e Grafana com `GF_PATHS_PROVISIONING=infra/observabilidade/grafana/provisioning FORD_DASHBOARDS_PATH=infra/observabilidade/grafana/dashboards` |
+| `infra/backup/` | Backup lógico **cifrado** (gzip + AES-256/PBKDF2 + SHA-256) e restauração **testada** em banco novo com conferência de contagens e tempo (RTO). | `BACKUP_KEY=... infra/backup/backup.sh <jdbc-url>` / `restore.sh <arquivo> <jdbc-url-novo>` |
+
+Chaves privadas dos certificados e backups gerados nunca vão para o Git (`.gitignore`).
+
+### Testes rápidos do MQTT
+
+```bash
+cd infra/mqtt
+mosquitto_pub -h localhost -p 8883 --cafile certs/ford-iot-ca.crt -t ford/v1/vehicles/9BFZZZ55LA0000001/telemetry -m x   # sem certificado → recusado
+mosquitto_pub -V mqttv5 -q 1 -d -h localhost -p 8883 --cafile certs/ford-iot-ca.crt \
+  --cert certs/veiculo-9BFZZZ55LA0000001.crt --key certs/veiculo-9BFZZZ55LA0000001.key \
+  -t ford/v1/vehicles/9BFZZZ55LA0000002/telemetry -m x                                                      # outro VIN → RC:135 Not authorized
+```
+
+## 5. Achados do pipeline e tratamento
 
 Primeira execução do `devsecops` (PR #1) — o pipeline encontrou problemas reais, corrigidos no mesmo PR:
 
@@ -113,7 +134,7 @@ Primeira execução do `devsecops` (PR #1) — o pipeline encontrou problemas re
 
 Regra: nenhum achado é suprimido sem justificativa escrita no próprio arquivo de exceção.
 
-## 5. Evidências para o documento de Cybersecurity
+## 6. Evidências para o documento de Cybersecurity
 
 | # | Evidência | Como gerar |
 |---|---|---|

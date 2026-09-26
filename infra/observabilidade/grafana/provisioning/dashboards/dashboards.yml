@@ -1,0 +1,7 @@
+apiVersion: 1
+providers:
+  - name: ford-retention
+    folder: Ford Retention AI
+    type: file
+    options:
+      path: ${FORD_DASHBOARDS_PATH}

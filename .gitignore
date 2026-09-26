@@ -42,3 +42,7 @@ build/
 
 ### IntelliJ (local) ###
 .idea/workspace.xml
+
+### PKI de laboratório (chaves privadas nunca no Git) ###
+infra/mqtt/certs/
+infra/backup/backups/

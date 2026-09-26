@@ -1,0 +1,7 @@
+# Cada veículo só publica a própria telemetria e só lê os próprios comandos (%u = CN = VIN)
+pattern write ford/v1/vehicles/%u/telemetry
+pattern read  ford/v1/vehicles/%u/commands
+
+# O ingestor só lê telemetria de todos os veículos; não publica nada
+user ingestor-service
+topic read ford/v1/vehicles/+/telemetry

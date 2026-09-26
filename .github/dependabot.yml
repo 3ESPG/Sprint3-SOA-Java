@@ -1,4 +1,6 @@
 # SCA contínuo: PRs automáticos de atualização (as de segurança são abertas assim que a CVE sai).
+# Política: patch e minor entram pelo pipeline normalmente; saltos de versão major (Spring Boot 4,
+# springdoc 3, Java fora da LTS 21) são migrações planejadas, não atualização automática.
 version: 2
 updates:
   - package-ecosystem: maven
@@ -11,6 +13,9 @@ updates:
     groups:
       spring:
         patterns: ["org.springframework*", "io.micrometer*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: "/"
@@ -23,3 +28,9 @@ updates:
     schedule:
       interval: weekly
     labels: ["dependencies", "docker"]
+    ignore:
+      # imagens seguem a LTS do projeto (Java 21); patches da mesma tag continuam chegando
+      - dependency-name: "eclipse-temurin"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "maven"
+        update-types: ["version-update:semver-major"]

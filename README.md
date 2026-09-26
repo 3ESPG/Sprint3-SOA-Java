@@ -54,7 +54,7 @@ e o parque antigo ainda é cerca de 70% da frota. Esta API é o back-end da solu
 | Observabilidade | Actuator + **Micrometer/Prometheus** |
 | DevSecOps | GitHub Actions (Gitleaks, Semgrep, Trivy), Dependabot, Dockerfile não-root |
 | Banco | **H2** em memória (dev/test) e **Oracle** (perfil `prod`) |
-| Documentação | springdoc-openapi 2.8 (Swagger UI) |
+| Documentação | springdoc-openapi 2.9 (Swagger UI) |
 | Testes | JUnit 5, Mockito, MockMvc, spring-security-test, AssertJ, JaCoCo |
 
 DTOs são `record`s; não usamos Lombok.
